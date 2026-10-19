@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>二维码生成</title>
+<meta name="description" content="文本、链接转二维码，纯本地生成，可下载 PNG。">
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#f5f7fa">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f5f7fa;--card:#fff;--ink:#1f2937;--mut:#6b7280;--line:#e5e7eb;--acc:#2563eb;--acc-d:#1d4ed8}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+.wrap{max-width:640px;margin:0 auto;padding:20px 16px 60px}
+header{text-align:center;padding:26px 0 18px}
+header h1{font-size:1.7rem;letter-spacing:.2em}
+header h1 span{color:var(--acc)}
+header p{color:var(--mut);font-size:.8rem;margin-top:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+label{display:block;font-size:.8rem;color:var(--mut);margin-bottom:8px}
+textarea{width:100%;min-height:110px;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:.95rem;resize:vertical;color:var(--ink)}
+textarea:focus{outline:2px solid #bfdbfe;border-color:var(--acc)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:.9rem;background:#fff;color:var(--ink)}
+#stage{text-align:center;padding:10px 0 4px}
+#cv{background:#fff;border:1px solid var(--line);border-radius:12px;max-width:100%;image-rendering:pixelated}
+#empty{color:var(--mut);font-size:.85rem;padding:40px 0}
+.btnrow{display:flex;gap:10px;margin-top:14px}
+.btn{flex:1;border:none;border-radius:10px;padding:13px 0;font-size:.95rem;cursor:pointer;letter-spacing:.05em}
+.btn-p{background:var(--acc);color:#fff}
+.btn-p:active{background:var(--acc-d)}
+.btn-g{background:#eef2ff;color:#3730a3}
+.btn:disabled{opacity:.4;cursor:default}
+.hint{font-size:.72rem;color:var(--mut);text-align:center;margin-top:10px;line-height:1.8}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{font-size:.75rem;background:#eef2ff;color:#3730a3;border-radius:20px;padding:6px 12px;cursor:pointer;border:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>二维<span>码</span>生成</h1><p>文本 / 链接转二维码 —— 纯本地生成，不上传</p></header>
+
+<div class="card">
+<label for="txt">输入内容</label>
+<textarea id="txt" placeholder="粘贴网址、输入文本……"></textarea>
+<div class="chips">
+<button class="chip" data-t="WIFI:T:WPA;S:MyWiFi;P:12345678;;">WiFi 示例</button>
+<button class="chip" data-t="https://muse-ai-assistant.github.io/">网址示例</button>
+<button class="chip" data-t="你好，二维码！">文本示例</button>
+</div>
+<div class="row">
+<div><label for="sz">尺寸</label><select id="sz"><option value="4">小</option><option value="8" selected>中</option><option value="12">大</option></select></div>
+<div><label for="ec">容错级别</label><select id="ec"><option value="L">L（7%，内容多时用）</option><option value="M" selected>M（15%，默认）</option><option value="Q">Q（25%）</option><option value="H">H（30%，可加 logo）</option></select></div>
+</div>
+</div>
+
+<div class="card">
+<div id="stage"><div id="empty">在上方输入内容，实时生成二维码</div><canvas id="cv" style="display:none"></canvas></div>
+<div class="btnrow">
+<button class="btn btn-p" id="dl" disabled>下载 PNG</button>
+<button class="btn btn-g" id="cp">复制图片</button>
+</div>
+</div>
+
+<p class="hint">二维码在你的设备上实时生成，不会发送到任何服务器。<br>WiFi 格式：WIFI:T:WPA;S:名称;P:密码;;（扫码直连）</p>
+</div>
+
+<script src="./qrcode.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const txt=$('txt'),cv=$('cv'),MARGIN=4;
+let lastOk=false;
+
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{txt.value=c.dataset.t;draw()});
+['input','change'].forEach(e=>{txt.addEventListener(e,draw);$('sz').addEventListener(e,draw);$('ec').addEventListener(e,draw)});
+
+function draw(){
+  const t=txt.value;
+  if(!t.trim()){cv.style.display='none';$('empty').style.display='';$('dl').disabled=true;lastOk=false;return}
+  try{
+    const qr=qrcode(0,$('ec').value); // 0 = 自动选择版本
+    qr.addData(t);qr.make();
+    const n=qr.getModuleCount(),cell=+$('sz').value;
+    const size=n*cell+MARGIN*2;
+    cv.width=cv.height=size;
+    const ctx=cv.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);
+    ctx.fillStyle='#000';
+    for(let r=0;r<n;r++)for(let c=0;c<n;c++)
+      if(qr.isDark(r,c))ctx.fillRect(MARGIN+c*cell,MARGIN+r*cell,cell,cell);
+    cv.style.display='';$('empty').style.display='none';
+    $('dl').disabled=false;lastOk=true;
+  }catch(e){
+    cv.style.display='none';$('empty').style.display='';
+    $('empty').textContent='内容过长，试试降低容错级别或缩短内容';
+    $('dl').disabled=true;lastOk=false;
+  }
+}
+$('dl').onclick=()=>{
+  if(!lastOk)return;
+  const a=document.createElement('a');
+  a.href=cv.toDataURL('image/png');
+  a.download='qrcode.png';a.click();
+};
+$('cp').onclick=async()=>{
+  if(!lastOk)return alert('先输入内容生成二维码');
+  try{
+    const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+    alert('已复制到剪贴板');
+  }catch(e){alert('复制失败，请用下载按钮')}
+};
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+draw();
+</script>
+</body>
+</html>
